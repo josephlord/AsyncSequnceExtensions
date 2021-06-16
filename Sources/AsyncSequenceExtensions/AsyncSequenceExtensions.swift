@@ -1,4 +1,10 @@
+
+#if canImport(Combine)
 import Combine
+#else
+import OpenCombineShim
+#endif
+
 
 @available(iOS 15.0, *)
 public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncSequenceType : AsyncSequence {

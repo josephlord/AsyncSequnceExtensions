@@ -13,7 +13,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
     
     let sequence: AsyncSequenceType
     
-    init(_ sequence: AsyncSequenceType) {
+    public init(_ sequence: AsyncSequenceType) {
         self.sequence = sequence
     }
     
@@ -31,9 +31,8 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                     for try await element in asyncSeq {
                         await self.waitUntilReadyForMore()
                         guard !Task.isCancelled else { return }
-                        demand = subscriber.receive(element)
+                        await setDemand(demand: subscriber.receive(element))
                     }
-                    
                     subscriber.receive(completion: .finished)
                 } catch {
                     subscriber.receive(completion: .failure(error))
@@ -52,7 +51,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                     continuation.resume()
                 }
             }
-            await waitUntilReadyForMore() // Will recheck that there is positive demand
+            //await waitUntilReadyForMore() // Will recheck that there is positive demand
         }
         
         nonisolated init(sequence: AsyncSequenceType, subscriber: S) {
@@ -78,7 +77,14 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         }
         
         private func setDemand(demand: Subscribers.Demand) async {
-            self.demand = demand
+            switch (self.demand, demand) {
+            case (.unlimited, .unlimited), (_, .none):
+                return // No update needed
+            case (_, .unlimited):
+                self.demand = .unlimited
+            default:
+                self.demand = self.demand + demand
+            }
             demandUpdated?()
         }
     }

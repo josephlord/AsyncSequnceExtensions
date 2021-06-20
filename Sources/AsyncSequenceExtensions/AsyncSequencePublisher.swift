@@ -21,26 +21,20 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
     where S : Subscriber, S.Failure == Error, S.Input == AsyncSequenceType.Element {
         
         var demand: Subscribers.Demand = .none
-//        let asyncSeq: AsyncSequenceType
-//        let subscriber: S
         var taskHandle: Task.Handle<(), Never>?
-//        var demandUpdated: (()->Void)? {
-//            didSet {
-//                Swift.print("DemandUpdated set")
-//            }
-//        }
+
         var demandUpdatedContinuation: CheckedContinuation<Void, Never>?
         
         private func mainLoop(seq: AsyncSequenceType, sub: S) {
             Swift.print("MainLoop")
-            taskHandle = async {
+            taskHandle = detach {
                 do {
                     Swift.print("Loop")
                     for try await element in seq {
                         Swift.print("element: \(element)")
                         await self.waitUntilReadyForMore()
                         guard !Task.isCancelled else { return }
-                        self.setDemand(demand: sub.receive(element))
+                        await self.setDemand(demand: sub.receive(element))
                     }
                     sub.receive(completion: .finished)
                 } catch {
@@ -48,6 +42,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                     sub.receive(completion: .failure(error))
                 }
             }
+            Swift.print("taskHandle set")
         }
         
         private func waitUntilReadyForMore() async {
@@ -61,20 +56,8 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             }
             
             let _: Void = await withCheckedContinuation { continuation in
-                
-//                    continuation.resume()
-//                    // Execution can continue
-//                } else {
-                    Swift.print("Set Demand Updated")
-                    demandUpdatedContinuation = continuation
-//                    self.demandUpdated = {
-//                        Swift.print("Will resume continuation")
-//                        continuation.resume()
-////                    }
-//                }
-            }
-            if demand > 0 {
-                demandUpdated()
+                Swift.print("Set continuation")
+                demandUpdatedContinuation = continuation
             }
         }
         
@@ -82,21 +65,23 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             async {
                 await mainLoop(seq: sequence, sub: subscriber)
             }
+            Swift.print("init returned")
         }
         
         nonisolated func request(_ demand: Subscribers.Demand) {
             Swift.print("request: \(demand)")
-            asyncDetached {
+            detach {
                 Swift.print("Will await setDemand")
-                await setDemand(demand: demand)
+                await self.setDemand(demand: demand)
                 Swift.print("Back from await setDemand")
             }
         }
         
         nonisolated func cancel() {
-            async {
-                await setCanceled()
-                await demandUpdated()// Unblock so the main loop can hit the task cancellation guard
+            detach {
+                Swift.print("Cancel")
+                await self.setCanceled()
+                await self.demandUpdated()// Unblock so the main loop can hit the task cancellation guard
                 
             }
         }
@@ -110,7 +95,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             taskHandle?.cancel()
         }
         
-        private func setDemand(demand: Subscribers.Demand) {
+        private func setDemand(demand: Subscribers.Demand) async {
             self.demand += demand
             guard demand > 0 else { return }
             demandUpdated()

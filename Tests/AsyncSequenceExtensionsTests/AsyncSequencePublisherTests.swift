@@ -18,7 +18,7 @@ final class AsyncSequencePublisherTests: XCTestCase {
     
     func testAsyncSequencePublisherBasic() throws {
         var counter = 0
-        let itemsToExpect = 5
+        let itemsToExpect = 1
         let asyncSequence = AsyncTimerSequence(interval: 0.1)
             .prefix(itemsToExpect)
             .map { _ -> Int in
@@ -37,8 +37,7 @@ final class AsyncSequencePublisherTests: XCTestCase {
             XCTAssertEqual(lastReceivedValue + 1, val)
             lastReceivedValue = val
         }
-        //cancellable.request(Subscribers.Demand.unlimited)
-        waitForExpectations(timeout: 8, handler: nil)
+        waitForExpectations(timeout: 0.5, handler: nil)
         _ = cancellable
     }
 }

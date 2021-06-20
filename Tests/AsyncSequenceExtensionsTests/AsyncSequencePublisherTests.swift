@@ -13,7 +13,7 @@ import Foundation
 import Combine
 
 
-@available(iOS 15.0, *)
+@available(iOS 15.0, macOS 12.0, *)
 final class AsyncSequencePublisherTests: XCTestCase {
     
     func testAsyncSequencePublisherBasic() throws {
@@ -33,11 +33,35 @@ final class AsyncSequencePublisherTests: XCTestCase {
             XCTAssertEqual(itemsToExpect, lastReceivedValue)
             e.fulfill()
         } receiveValue: { val in
+            print("received \(val)")
             XCTAssertEqual(lastReceivedValue + 1, val)
             lastReceivedValue = val
         }
         //cancellable.request(Subscribers.Demand.unlimited)
         waitForExpectations(timeout: 8, handler: nil)
         _ = cancellable
+    }
+}
+
+
+final class SubscriptionDemandExperimentTests: XCTestCase {
+    func testAddUnlimitedDemand() {
+        let unlimited = Subscribers.Demand.unlimited
+        
+        XCTAssertEqual(unlimited, unlimited + .max(1))
+        XCTAssertEqual(unlimited, unlimited + .none)
+        XCTAssertEqual(unlimited, unlimited + .unlimited)
+        XCTAssertEqual(unlimited, unlimited + .max(.max))
+        var unl = unlimited
+        unl -= 1
+        XCTAssertEqual(unlimited, unl)
+        XCTAssert(unl > 1)
+    }
+    
+    func testAddLimitedDemand() {
+        let three = Subscribers.Demand.max(3)
+        
+        XCTAssertEqual(.max(4), three + .max(1))
+        XCTAssertEqual(.max(3), three + .none)
     }
 }

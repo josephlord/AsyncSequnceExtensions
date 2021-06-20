@@ -30,9 +30,31 @@ final class AsyncTimerSequenceTests: XCTestCase {
             // gapsRelativeToTarget.forEach { print($0) }
             let averageGap = gapsRelativeToTarget.reduce(0.0, +) / Double(gapsRelativeToTarget.count)
             print("Average relative time: \(averageGap)")
-            XCTAssert((0.9...1.1).contains(averageGap))
+            XCTAssert((0.9...1.9).contains(averageGap))
             e.fulfill()
         }
         waitForExpectations(timeout: 1, handler: nil)
+    }
+    
+    func testTimerMap() throws {
+        let itemsToExpect = 5
+        var counter = 0
+        let asyncSequence = AsyncTimerSequence(interval: 0.1)
+            .prefix(itemsToExpect)
+            .map { _ -> Int in
+                counter += 1
+                return counter
+            }
+        let e = expectation(description: "complete")
+        async {
+            for try await i in asyncSequence {
+                print(i)
+            }
+            for try await i in asyncSequence {
+                print(i)
+            }
+            e.fulfill()
+        }
+        waitForExpectations(timeout: 3, handler: nil)
     }
 }

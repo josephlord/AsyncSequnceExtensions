@@ -10,7 +10,7 @@ import Foundation
 /// in 10 seconds. If you then wait 5 seconds before calling init you will receive the event 5 seconds after that.
 /// If it is then 35s before the call to next it will immediately return one value, if you call next again it will five
 /// seconds before it receives a value.
-@available(iOS 15.0, *)
+@available(iOS 15.0, macOS 12.0, *)
 public struct AsyncTimerSequence : AsyncSequence {
     
     public typealias AsyncIterator = AsyncTimerIterator
@@ -26,7 +26,7 @@ public struct AsyncTimerSequence : AsyncSequence {
     public func makeAsyncIterator() -> AsyncTimerIterator {
         return AsyncTimerIterator(interval: interval)
     }
-    
+
     public actor AsyncTimerIterator : AsyncIteratorProtocol {
         private(set) var timer: Timer?
         var continuation: (() -> Void)?

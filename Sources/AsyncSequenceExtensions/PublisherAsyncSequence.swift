@@ -1,9 +1,8 @@
 
 import Combine
 import _Concurrency
-import Metal
 
-@available(macOS 12.0, *)
+@available(macOS 12.0, iOS 15.0, *)
 struct PublisherAsyncSequence<Element> : AsyncSequence {
 
     let publisher: AnyPublisher<Element, Error>
@@ -12,7 +11,6 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
         let itr = Iterator()
         publisher.receive(subscriber: itr)
         return itr
-        
     }
 
     actor Iterator : AsyncIteratorProtocol, Subscriber {
@@ -73,7 +71,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
 }
 
 
-@available(macOS 12.0, *)
+@available(macOS 12.0, iOS 15.0, *)
 extension Publisher where Self.Failure == Error {
     var asyncSequence: PublisherAsyncSequence<Output> {
         PublisherAsyncSequence(publisher: self.eraseToAnyPublisher())

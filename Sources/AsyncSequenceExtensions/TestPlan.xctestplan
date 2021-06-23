@@ -1,0 +1,32 @@
+{
+  "configurations" : [
+    {
+      "id" : "837E7F0A-F5A9-44B2-991C-36CD4E6263B8",
+      "name" : "Configuration 1",
+      "options" : {
+        "testRepetitionMode" : "fixedIterations"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "maximumTestRepetitions" : 100,
+    "testRepetitionMode" : "fixedIterations",
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "AsyncSequenceExtensionsTests",
+        "AsyncSequencePublisherTests",
+        "AsyncTimerSequenceTests",
+        "SubscriptionDemandExperimentTests"
+      ],
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "AsyncSequenceExtensionsTests",
+        "name" : "AsyncSequenceExtensionsTests"
+      }
+    }
+  ],
+  "version" : 1
+}

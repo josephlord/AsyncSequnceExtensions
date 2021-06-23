@@ -19,7 +19,7 @@ final class AsyncSequencePublisherTests: XCTestCase {
     func testAsyncSequencePublisherBasic() throws {
         var counter = 0
         let itemsToExpect = 1
-        let asyncSequence = AsyncTimerSequence(interval: 0.1)
+        let asyncSequence = AsyncTimerSequence(interval: 0.01)
             .prefix(itemsToExpect)
             .map { _ -> Int in
                 counter += 1

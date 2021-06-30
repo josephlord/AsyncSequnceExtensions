@@ -29,7 +29,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
         }
 
         nonisolated func receive(subscription: Subscription) {
-            async {
+            Task {
                 await self.receive(sub: subscription)
             }
         }
@@ -39,7 +39,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
         }
         
         nonisolated func receive(completion: Subscribers.Completion<Error>) {
-            async {
+            Task {
                 await receive(compl: completion)
             }
         }
@@ -55,7 +55,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
         }
         
         nonisolated func receive(_ input: Element) -> Subscribers.Demand {
-            async {
+            Task {
                 await receive(input: input)
             }
             return .none

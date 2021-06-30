@@ -16,13 +16,13 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
     where S : Subscriber, S.Failure == Error, S.Input == AsyncSequenceType.Element {
         
         var demand: Subscribers.Demand = .none
-        var taskHandle: Task.Handle<(), Never>?
+        var taskHandle: Task<(), Never>?
 
         var demandUpdatedContinuation: CheckedContinuation<Void, Never>?
         
         private func mainLoop(seq: AsyncSequenceType, sub: S) {
             Swift.print("MainLoop")
-            taskHandle = detach {
+            taskHandle = Task.detached {
                 do {
                     Swift.print("Loop")
                     for try await element in seq {
@@ -61,7 +61,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         
         convenience init(sequence: AsyncSequenceType, subscriber: S) {
             self.init()
-            async {
+            Task {
                 await self.mainLoop(seq: sequence, sub: subscriber)
             }
             Swift.print("init returned")
@@ -69,7 +69,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                 
         nonisolated func request(_ demand: Subscribers.Demand) {
             Swift.print("request: \(demand)")
-            detach {
+            Task.detached {
                 Swift.print("Will await setDemand")
                 await self.setDemand(demand: demand)
                 Swift.print("Back from await setDemand")
@@ -77,7 +77,7 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         }
         
         nonisolated func cancel() {
-            detach {
+            Task.detached {
                 Swift.print("Cancel")
                 await self.setCanceled()
                 await self.demandUpdated()// Unblock so the main loop can hit the task cancellation guard

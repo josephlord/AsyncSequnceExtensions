@@ -35,9 +35,9 @@ public struct AsyncTimerSequence : AsyncSequence {
             self.init()
             let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 guard let s = self else { return }
-                detach { await s.tick() }
+                Task.detached { await s.tick() }
             }
-            async {
+            Task {
                 await self.setTimer(t)
             }
             RunLoop.main.add(t, forMode: .default)

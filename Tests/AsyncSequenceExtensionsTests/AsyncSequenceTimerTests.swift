@@ -15,7 +15,7 @@ final class AsyncTimerSequenceTests: XCTestCase {
         let e = expectation(description: "Asynccomplete")
         let timerInterval = 0.0001
         let timerSequence = AsyncTimerSequence(interval: timerInterval)
-        async {//(priority: .userInteractive) {
+        Task {//(priority: .userInteractive) {
             let iterations = 30
             var deltas: [CFAbsoluteTime] = []
             deltas.reserveCapacity(iterations)
@@ -41,7 +41,7 @@ final class AsyncTimerSequenceTests: XCTestCase {
         let e = expectation(description: "Asynccomplete")
         let timerInterval = 0.0001
         let timerSequence = AsyncTimerSequence(interval: timerInterval)
-        async {//(priority: .userInteractive) {
+        Task {//(priority: .userInteractive) {
             let iterations = 30
             var deltas: [CFAbsoluteTime] = []
             deltas.reserveCapacity(iterations)
@@ -105,7 +105,7 @@ final class AsyncTimerSequenceTests: XCTestCase {
                 return counter
             }
         let e = expectation(description: "complete")
-        async {
+        Task {
             for try await i in asyncSequence {
                 print(i)
             }

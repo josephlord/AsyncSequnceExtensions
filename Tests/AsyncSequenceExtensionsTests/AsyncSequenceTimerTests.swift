@@ -15,7 +15,7 @@ final class AsyncTimerSequenceTests: XCTestCase {
         let e = expectation(description: "Asynccomplete")
         let timerInterval = 0.0001
         let timerSequence = AsyncTimerSequence(interval: timerInterval)
-        async(priority: .userInteractive) {
+        async {//(priority: .userInteractive) {
             let iterations = 30
             var deltas: [CFAbsoluteTime] = []
             deltas.reserveCapacity(iterations)
@@ -33,8 +33,67 @@ final class AsyncTimerSequenceTests: XCTestCase {
             XCTAssert((0.9...1.9).contains(averageGap))
             e.fulfill()
         }
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 3, handler: nil)
+        _ = timerSequence
     }
+    
+    func testTimerIterator() throws {
+        let e = expectation(description: "Asynccomplete")
+        let timerInterval = 0.0001
+        let timerSequence = AsyncTimerSequence(interval: timerInterval)
+        async {//(priority: .userInteractive) {
+            let iterations = 30
+            var deltas: [CFAbsoluteTime] = []
+            deltas.reserveCapacity(iterations)
+            var previousTime = CFAbsoluteTimeGetCurrent()
+            let timerIterator = timerSequence.makeAsyncIterator()
+            while deltas.count < iterations, let _ = try await timerIterator.next() {
+            //for try await time in (timerSequence.prefix(iterations).map { _ in CFAbsoluteTimeGetCurrent() }) {
+                let time = CFAbsoluteTimeGetCurrent()
+                deltas.append(time - previousTime)
+                previousTime = time
+            }
+            
+            let gapsRelativeToTarget = deltas.dropFirst().map { $0 / timerInterval }
+            // Enable this too look at the jitter between calls
+            // gapsRelativeToTarget.forEach { print($0) }
+            let averageGap = gapsRelativeToTarget.reduce(0.0, +) / Double(gapsRelativeToTarget.count)
+            print("Average relative time: \(averageGap)")
+            XCTAssert((0.9...1.9).contains(averageGap))
+            e.fulfill()
+            _ = timerIterator
+        }
+        waitForExpectations(timeout: 3, handler: nil)
+        _ = timerSequence
+    }
+
+    func testTimerPublisher2() async throws {
+//        let e = expectation(description: "Asynccomplete")
+        let timerInterval = 0.10
+        let timerSequence = AsyncTimerSequence(interval: timerInterval)
+        //async {//(priority: .userInteractive) {
+            let iterations = 30
+            var deltas: [CFAbsoluteTime] = []
+            deltas.reserveCapacity(iterations)
+            var previousTime = CFAbsoluteTimeGetCurrent()
+        for try await _ in (timerSequence.prefix(iterations)) { //.map { _ in CFAbsoluteTimeGetCurrent() }) {
+                let time = CFAbsoluteTimeGetCurrent()
+                deltas.append(time - previousTime)
+                previousTime = time
+            }
+            
+            let gapsRelativeToTarget = deltas.dropFirst().map { $0 / timerInterval }
+            // Enable this too look at the jitter between calls
+            // gapsRelativeToTarget.forEach { print($0) }
+            let averageGap = gapsRelativeToTarget.reduce(0.0, +) / Double(gapsRelativeToTarget.count)
+            print("Average relative time: \(averageGap)")
+            XCTAssert((0.9...1.9).contains(averageGap))
+//            e.fulfill()
+//        }
+//        waitForExpectations(timeout: 3, handler: nil)
+        _ = timerSequence
+    }
+    
     
     func testTimerMap() throws {
         let itemsToExpect = 5

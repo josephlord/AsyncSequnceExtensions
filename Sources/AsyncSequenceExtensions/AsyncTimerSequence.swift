@@ -29,15 +29,48 @@ public struct AsyncTimerSequence : AsyncSequence {
 
     public actor AsyncTimerIterator : AsyncIteratorProtocol {
         private(set) var timer: Timer?
-        var continuation: (() -> Void)?
-        init(interval: TimeInterval) {
+        private var continuation: (() -> Void)?
+        
+        convenience init(interval: TimeInterval) {
+            self.init()
             let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 guard let s = self else { return }
                 detach { await s.tick() }
             }
-            timer = t
+            async {
+                await self.setTimer(t)
+            }
             RunLoop.main.add(t, forMode: .default)
         }
+        
+        private func setTimer(_ t: Timer) {
+            self.timer = t
+        }
+        
+//        private init() {}
+        
+//        convenience init(interval: TimeInterval) {
+//            self.init()
+//            async {
+//                //await startTimer(interval: interval)
+//                let t = Timer(timeInterval: interval, repeats: true) { _ in
+//                    guard let s = s else { return }
+//                    detach { await s.tick() }
+//                }
+//                timer = t
+//                RunLoop.main.add(t, forMode: .default)
+//            }
+//        }
+//
+//        private func startTimer(interval: TimeInterval) {
+//            weak var s = self
+//            let t = Timer(timeInterval: interval, repeats: true) { _ in
+//                guard let s = s else { return }
+//                detach { await s.tick() }
+//            }
+//            timer = t
+//            RunLoop.main.add(t, forMode: .default)
+//        }
         
         private func tick() async {
             continuation?()
@@ -46,8 +79,14 @@ public struct AsyncTimerSequence : AsyncSequence {
         
         public func next() async throws -> ()? {
             await withCheckedContinuation { continuation in
-                self.continuation = { continuation.resume(with: .success(())) }
+                self.continuation = {
+                    continuation.resume(with: .success(()))
+                }
             }
+        }
+        
+        deinit {
+            print("Iterator deinit")
         }
     }
 }

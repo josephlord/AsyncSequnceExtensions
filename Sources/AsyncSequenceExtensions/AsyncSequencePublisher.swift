@@ -33,7 +33,8 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                     }
                     sub.receive(completion: .finished)
                 } catch {
-                    if error is Task.CancellationError { return }
+//                    if error is Task.CancellationError { return }
+                    if error is CancellationError { return }
                     sub.receive(completion: .failure(error))
                 }
             }
@@ -56,13 +57,16 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             }
         }
         
-        nonisolated init(sequence: AsyncSequenceType, subscriber: S) {
+        private init() {}
+        
+        convenience init(sequence: AsyncSequenceType, subscriber: S) {
+            self.init()
             async {
-                await mainLoop(seq: sequence, sub: subscriber)
+                await self.mainLoop(seq: sequence, sub: subscriber)
             }
             Swift.print("init returned")
         }
-        
+                
         nonisolated func request(_ demand: Subscribers.Demand) {
             Swift.print("request: \(demand)")
             detach {

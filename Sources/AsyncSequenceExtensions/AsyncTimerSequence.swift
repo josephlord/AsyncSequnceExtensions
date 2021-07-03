@@ -11,7 +11,7 @@ import Foundation
 /// If it is then 35s before the call to next it will immediately return one value, if you call next again it will five
 /// seconds before it receives a value.
 @available(iOS 15.0, macOS 12.0, *)
-public struct AsyncTimerSequence : AsyncSequence {
+public struct AsyncTimerSequenceOriginal : AsyncSequence {
     
     public typealias AsyncIterator = AsyncTimerIterator
     

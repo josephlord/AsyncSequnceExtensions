@@ -3,7 +3,7 @@ import AsyncSequenceExtensions
 import Foundation
 
 
-@available(iOS 15.0, *)
+@available(macOS 12.0, iOS 15.0, *)
 final class AsyncSequenceExtensionsTests: XCTestCase {
     let fileUrl = Bundle.module.url(forResource: "TestFile", withExtension: "md")!
     
@@ -25,5 +25,31 @@ final class AsyncSequenceExtensionsTests: XCTestCase {
 //        XCTAssertEqual(61, nonEmptyLineCount)
 //    }
 
-
+    
+// Not in the Snapshot
+//    func testUrlSessionFileBytesSequence() async throws {
+//        var nonEmptyLineCount = 0
+//        async let sequence = try URLSession.shared.bytes(from: fileUrl).0
+//
+//            for try await byte in try await sequence {
+//
+//                nonEmptyLineCount += 1
+//                _ = byte
+//            }
+//        XCTAssertEqual(5512, nonEmptyLineCount)
+//    }
+    
+//    func testUrlLinesSequence() async throws {
+//        var nonEmptyLineCount = 0
+//        async let sequence = fileUrl.lines
+//
+//            for try await line in await sequence {
+//
+//                nonEmptyLineCount += 1
+//                print(line)
+//            }
+//        XCTAssertEqual(61, nonEmptyLineCount)
+//    }
+    
+   // func testPublisherWithL
 }

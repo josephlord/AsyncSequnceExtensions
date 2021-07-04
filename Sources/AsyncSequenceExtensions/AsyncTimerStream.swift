@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Collections
+import DequeModule
 //import _Concurrency
 
 //extension Timer {
@@ -40,13 +40,11 @@ public struct AsyncTimerSequence : AsyncSequence {
     public final class Iterator : AsyncIteratorProtocol {
         
         private var timer: Timer?
-        private var continuations: [CheckedContinuation<(), Never>] = []
+        private var continuations:  Deque<CheckedContinuation<(), Never>> = []
         
         init(interval: TimeInterval) {
             let t = Timer(fire: .now, interval: interval, repeats: true) { [weak self] _ in
-                guard let continuation = self?.continuations.first else { return }
-                continuation.resume()
-                self?.continuations.removeFirst()
+                self?.continuations.popFirst()?.resume()
             }
             timer = t
             RunLoop.main.add(t, forMode: .default)
@@ -78,45 +76,45 @@ public struct AsyncTimerActorSequence : AsyncSequence {
     }
     
     public func makeAsyncIterator() -> Iterator {
-        let itr = Iterator()
-        Task {
-            await itr.start(interval: interval)
-        }
-        return itr
+        Iterator(interval: interval)
     }
     
-    public actor Iterator : AsyncIteratorProtocol {
+    public struct Iterator : AsyncIteratorProtocol {
         
+        private actor InnerActor {
+            private var continuations: Deque<CheckedContinuation<(), Never>> = []
+            
+            fileprivate func fireContinuation()  {
+                continuations.popFirst()?.resume()
+            }
+            
+            fileprivate func addContinuation(_ continuation: CheckedContinuation<(), Never>) {
+                continuations.append(continuation)
+            }
+        }
+        private let safeContinuations = InnerActor()
         private var timer: Timer?
-        private var continuations: [CheckedContinuation<(), Never>] = []
         
-        fileprivate init() {}
-        
-        fileprivate func start(interval: TimeInterval) {
-            let t = Timer(fire: .now, interval: interval, repeats: true) { [weak self] _ in
-                guard let s = self else { return }
-                Task.detached {
-                    await s.fireContinuation()
+        fileprivate init(interval: TimeInterval) {
+            let safeConts = safeContinuations
+            let t = Timer(fire: .now, interval: interval, repeats: true) { _ in
+                Task {
+                    await safeConts.fireContinuation()
                 }
             }
-            timer = t
+            self.timer = t
             RunLoop.main.add(t, forMode: .default)
-        }
-        
-        private func fireContinuation()  {
-            guard !continuations.isEmpty else { return }
-            continuations.removeFirst().resume()
         }
         
         public func next() async throws -> ()? {
             await withCheckedContinuation { continuation in
-                self.continuations.append(continuation)
+                Task {
+                    await safeContinuations.addContinuation(continuation)
+                }
             }
             return ()
         }
         
-        deinit {
-            timer?.invalidate()
-        }
+        
     }
 }

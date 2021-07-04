@@ -121,3 +121,61 @@ public struct AsyncTimerActorSequence : AsyncSequence {
         }
     }
 }
+
+@available(macOS 12.0, iOS 15.0, *)
+public struct AsyncTimerActorSequenceUnreliable : AsyncSequence {
+    
+    public typealias AsyncIterator = Iterator
+    public typealias Element = Void
+    
+    let interval: TimeInterval
+    
+    public init(interval: TimeInterval) {
+        self.interval = interval
+    }
+    
+    public func makeAsyncIterator() -> Iterator {
+        Iterator(interval: interval)
+    }
+    
+    public class Iterator : AsyncIteratorProtocol {
+        
+        private actor InnerActor {
+            private var continuations: Deque<CheckedContinuation<(), Never>> = []
+            
+            fileprivate func fireContinuation() {
+                continuations.popFirst()?.resume()
+            }
+            
+            fileprivate func addContinuation(_ continuation: CheckedContinuation<(), Never>) {
+                continuations.append(continuation)
+            }
+        }
+        private let safeContinuations = InnerActor()
+        private var timer: Timer?
+        
+        fileprivate init(interval: TimeInterval) {
+            let safeConts = safeContinuations
+            let t = Timer(fire: .now, interval: interval, repeats: true) { _ in
+                Task {
+                    await safeConts.fireContinuation()
+                }
+            }
+            self.timer = t
+            RunLoop.main.add(t, forMode: .default)
+        }
+        
+        public func next() async throws -> ()? {
+            await withCheckedContinuation { continuation in
+                Task {
+                    await safeContinuations.addContinuation(continuation)
+                }
+            }
+            return ()
+        }
+        
+        deinit {
+            timer?.invalidate()
+        }
+    }
+}

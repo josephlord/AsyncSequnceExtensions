@@ -233,7 +233,7 @@ final class AsyncTimerSequence2Tests: XCTestCase {
 final class AsyncTimerSequenceActorTests: XCTestCase {
     func testTimerPublisher() throws {
         let e = expectation(description: "Asynccomplete")
-        let timerInterval = 0.0001
+        let timerInterval = 0.001
         let timerSequence = AsyncTimerActorSequence(interval: timerInterval)
         Task {//(priority: .userInteractive) {
             let iterations = 30
@@ -250,7 +250,7 @@ final class AsyncTimerSequenceActorTests: XCTestCase {
             // gapsRelativeToTarget.forEach { print($0) }
             let averageGap = gapsRelativeToTarget.reduce(0.0, +) / Double(gapsRelativeToTarget.count)
             print("Average relative time: \(averageGap)")
-            XCTAssert((0.9...1.9).contains(averageGap))
+            XCTAssert((0.9...4).contains(averageGap))
             e.fulfill()
         }
         waitForExpectations(timeout: 3, handler: nil)
@@ -259,7 +259,7 @@ final class AsyncTimerSequenceActorTests: XCTestCase {
     
     func testTimerIterator() throws {
         let e = expectation(description: "Asynccomplete")
-        let timerInterval = 0.0001
+        let timerInterval = 0.001
         let timerSequence = AsyncTimerActorSequence(interval: timerInterval)
         Task {//(priority: .userInteractive) {
             let iterations = 30
@@ -279,7 +279,7 @@ final class AsyncTimerSequenceActorTests: XCTestCase {
             // gapsRelativeToTarget.forEach { print($0) }
             let averageGap = gapsRelativeToTarget.reduce(0.0, +) / Double(gapsRelativeToTarget.count)
             print("Average relative time: \(averageGap)")
-            XCTAssert((0.9...1.9).contains(averageGap))
+            XCTAssert((0.9...3).contains(averageGap))
             e.fulfill()
             _ = timerIterator
         }

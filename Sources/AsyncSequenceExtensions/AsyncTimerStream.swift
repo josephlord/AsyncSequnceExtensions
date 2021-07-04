@@ -79,13 +79,13 @@ public struct AsyncTimerActorSequence : AsyncSequence {
         Iterator(interval: interval)
     }
     
-    public struct Iterator : AsyncIteratorProtocol {
+    public class Iterator : AsyncIteratorProtocol {
         
         private actor InnerActor {
             private var continuations: Deque<CheckedContinuation<(), Never>> = []
             
-            fileprivate func fireContinuation()  {
-                continuations.popFirst()?.resume()
+            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
+                return continuations.popFirst()
             }
             
             fileprivate func addContinuation(_ continuation: CheckedContinuation<(), Never>) {
@@ -99,7 +99,8 @@ public struct AsyncTimerActorSequence : AsyncSequence {
             let safeConts = safeContinuations
             let t = Timer(fire: .now, interval: interval, repeats: true) { _ in
                 Task {
-                    await safeConts.fireContinuation()
+                    let continuation = await safeConts.getContinuation()
+                    continuation?.resume()
                 }
             }
             self.timer = t
@@ -115,6 +116,8 @@ public struct AsyncTimerActorSequence : AsyncSequence {
             return ()
         }
         
-        
+        deinit {
+            timer?.invalidate()
+        }
     }
 }

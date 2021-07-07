@@ -48,7 +48,6 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         
         private func mainLoop(seq: AsyncSequenceType, sub: S) {
             taskHandle = Task {
-                let sentinel = Sentinel()
                 do {
                     try await withTaskCancellationHandler {
                         Task.detached {
@@ -62,7 +61,6 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                             let newDemand = sub.receive(element)
                             let cont = await self.innerActor.updateDemandAndReturnContinuation(demand: newDemand)
                             assert(cont == nil, "If we are't waiting on the demand the continuation will always be nil")
-                            cont?.resume()
                         }
                         sub.receive(completion: .finished)
                         return
@@ -70,7 +68,6 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                 } catch {
                     if error is CancellationError { return }
                     sub.receive(completion: .failure(error))
-                    Swift.print("Sentinel: \(sentinel.val) - count: \(Sentinel.count)")
                 }
             }
         }
@@ -105,18 +102,5 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
 extension AsyncSequence {
     public var publisher: AsyncSequencePublisher<Self> {
         AsyncSequencePublisher(self)
-    }
-}
-
-class Sentinel {
-    static var count = 0
-    let val = Int.random(in: Int.min...Int.max)
-    init() {
-        Self.count += 1
-        assert(Self.count == 1)
-    }
-    
-    deinit {
-        Self.count -= 1
     }
 }

@@ -12,13 +12,45 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         self.sequence = sequence
     }
     
-    fileprivate actor ASPSubscription<S> : Subscription
+    fileprivate class ASPSubscription<S> : Subscription
     where S : Subscriber, S.Failure == Error, S.Input == AsyncSequenceType.Element {
+        private var taskHandle: Task<(), Never>?
+        private let innerActor = Inner()
         
-        var demand: Subscribers.Demand = .none
-        var taskHandle: Task<(), Never>?
-
-        var demandUpdatedContinuation: CheckedContinuation<Void, Never>?
+        private actor Inner {
+            var demand: Subscribers.Demand = .none
+            
+            var demandUpdatedContinuation: CheckedContinuation<Void, Never>?
+            
+            fileprivate func waitUntilReadyForMore() async {
+                
+                Swift.print("Wait on Demand")
+                
+                if demand > 0 {
+                    demand -= 1
+                    Swift.print("Demand OK - continue")
+                    return
+                }
+                
+                let _: Void = await withCheckedContinuation { continuation in
+                    Swift.print("Set continuation")
+                    demandUpdatedContinuation = continuation
+                }
+            }
+            
+            func updateDemandAndReturnContinuation(demand: Subscribers.Demand) -> CheckedContinuation<Void, Never>? {
+                defer { demandUpdatedContinuation = nil }
+                self.demand += demand
+                guard demand > 0 else { return nil }
+                return demandUpdatedContinuation
+            }
+            
+            func getContinuationToFireOnCancelation()  -> CheckedContinuation<Void, Never>? {
+                defer { demandUpdatedContinuation = nil }
+                return demandUpdatedContinuation
+            }
+            
+        }
         
         private func mainLoop(seq: AsyncSequenceType, sub: S) {
             Swift.print("MainLoop")
@@ -27,9 +59,11 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                     Swift.print("Loop")
                     for try await element in seq {
                         Swift.print("element: \(element)")
-                        await self.waitUntilReadyForMore()
+                        await self.innerActor.waitUntilReadyForMore()
                         guard !Task.isCancelled else { return }
-                        await self.setDemand(demand: sub.receive(element))
+                        let newDemand = sub.receive(element)
+                        let cont = await self.innerActor.updateDemandAndReturnContinuation(demand: newDemand)
+                        assert(cont == nil, "If we arent' waiting on the demand the continuation will always be nil")
                     }
                     sub.receive(completion: .finished)
                 } catch {
@@ -41,68 +75,37 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             Swift.print("taskHandle set")
         }
         
-        private func waitUntilReadyForMore() async {
-            
-            Swift.print("Wait on Demand")
-            
-            if demand > 0 {
-                demand -= 1
-                Swift.print("Demand OK - continue")
-                return
-            }
-            
-            let _: Void = await withCheckedContinuation { continuation in
-                Swift.print("Set continuation")
-                demandUpdatedContinuation = continuation
-            }
-        }
-        
-        private init() {}
-        
-        convenience init(sequence: AsyncSequenceType, subscriber: S) {
-            self.init()
-            Task {
-                await self.mainLoop(seq: sequence, sub: subscriber)
-            }
+        init(sequence: AsyncSequenceType, subscriber: S) {
+            self.mainLoop(seq: sequence, sub: subscriber)
             Swift.print("init returned")
         }
                 
-        nonisolated func request(_ demand: Subscribers.Demand) {
+        func request(_ demand: Subscribers.Demand) {
             Swift.print("request: \(demand)")
-            Task.detached {
+            Task {
                 Swift.print("Will await setDemand")
-                await self.setDemand(demand: demand)
+                let cont = await innerActor.updateDemandAndReturnContinuation(demand: demand)
+                cont?.resume()
                 Swift.print("Back from await setDemand")
             }
         }
         
-        nonisolated func cancel() {
-            Task.detached {
+        func cancel() {
+            self.setCanceled()
+            Task {
                 Swift.print("Cancel")
-                await self.setCanceled()
-                await self.demandUpdated()// Unblock so the main loop can hit the task cancellation guard
-                
+                let cont = await self.innerActor.getContinuationToFireOnCancelation()// Unblock so the main loop can hit the task cancellation guard
+                cont?.resume()
             }
         }
         
-        private func demandUpdated() {
-            demandUpdatedContinuation?.resume()
-            demandUpdatedContinuation = nil
-        }
-        
-        private func setCanceled() async {
+        private func setCanceled() {
             taskHandle?.cancel()
-        }
-        
-        private func setDemand(demand: Subscribers.Demand) async {
-            self.demand += demand
-            guard demand > 0 else { return }
-            demandUpdated()
         }
         
         deinit {
             taskHandle?.cancel()
-            demandUpdatedContinuation?.resume()
+          //  cancel()
         }
     }
     

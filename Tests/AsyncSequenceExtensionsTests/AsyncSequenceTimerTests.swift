@@ -40,7 +40,7 @@ final class AsyncTimerSequence2Tests: XCTestCase {
     
     func testTimerIterator() throws {
         let e = expectation(description: "Asynccomplete")
-        let timerInterval = 0.0001
+        let timerInterval = 0.001
         let timerSequence = AsyncTimerSequence(interval: timerInterval)
         Task {//(priority: .userInteractive) {
             let iterations = 30

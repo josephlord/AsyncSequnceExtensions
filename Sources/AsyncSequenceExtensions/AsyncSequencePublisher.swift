@@ -1,5 +1,6 @@
 
 import Combine
+import Foundation
 
 @available(iOS 15.0, macOS 12.0, *)
 public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncSequenceType : AsyncSequence {
@@ -50,24 +51,38 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
                 return demandUpdatedContinuation
             }
             
+            deinit {
+//                if let cont = demandUpdatedContinuation {
+//                    DispatchQueue.main.async { cont.resume() } // Fire continuation safely to ensure task can be can be cancelled
+//                }
+            }
         }
         
         private func mainLoop(seq: AsyncSequenceType, sub: S) {
             Swift.print("MainLoop")
-            taskHandle = Task.detached {
+            taskHandle = Task {
+                let sentinel = Sentinel()
                 do {
-                    Swift.print("Loop")
-                    for try await element in seq {
-                        Swift.print("element: \(element)")
-                        await self.innerActor.waitUntilReadyForMore()
-                        guard !Task.isCancelled else { return }
-                        let newDemand = sub.receive(element)
-                        let cont = await self.innerActor.updateDemandAndReturnContinuation(demand: newDemand)
-                        assert(cont == nil, "If we arent' waiting on the demand the continuation will always be nil")
+                    try await withTaskCancellationHandler {
+                        Task.detached {
+                            let  cont = await self.innerActor.getContinuationToFireOnCancelation()
+                            cont?.resume()
+                        }
+                    } operation: {
+                        Swift.print("Loop")
+                        for try await element in seq {
+                            Swift.print("element: \(element)")
+                            await self.innerActor.waitUntilReadyForMore()
+                            guard !Task.isCancelled else { return }
+                            let newDemand = sub.receive(element)
+                            let cont = await self.innerActor.updateDemandAndReturnContinuation(demand: newDemand)
+                            assert(cont == nil, "If we arent' waiting on the demand the continuation will always be nil")
+                        }
+                        sub.receive(completion: .finished)
+                        return
                     }
-                    sub.receive(completion: .finished)
                 } catch {
-//                    if error is Task.CancellationError { return }
+                    Swift.print("Sentinel count: \(Sentinel.count), sentinel value: \(sentinel.val)")
                     if error is CancellationError { return }
                     sub.receive(completion: .failure(error))
                 }
@@ -91,21 +106,11 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
         }
         
         func cancel() {
-            self.setCanceled()
-            Task {
-                Swift.print("Cancel")
-                let cont = await self.innerActor.getContinuationToFireOnCancelation()// Unblock so the main loop can hit the task cancellation guard
-                cont?.resume()
-            }
-        }
-        
-        private func setCanceled() {
             taskHandle?.cancel()
         }
         
         deinit {
-            taskHandle?.cancel()
-          //  cancel()
+            cancel()
         }
     }
     
@@ -119,5 +124,17 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
 extension AsyncSequence {
     public var publisher: AsyncSequencePublisher<Self> {
         AsyncSequencePublisher(self)
+    }
+}
+
+class Sentinel {
+    static var count = 0
+    let val = Int.random(in: Int.min...Int.max)
+    init() {
+        Self.count += 1
+    }
+    
+    deinit {
+        Self.count -= 1
     }
 }

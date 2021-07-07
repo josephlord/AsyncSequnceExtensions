@@ -1,92 +1,70 @@
-
+//
+//  File.swift
+//  
+//
+//  Created by Joseph Lord on 03/07/2021.
+//
 
 import Foundation
+import DequeModule
 
-/// The sequence with return a Void every TimeInterval from when the iterator is created
-/// There will never be two values ready to be taken immediately, If two timeperiods pass between calls to
-/// next then one of the events will be skipped. The timer events are all relative to timer creation not the last
-/// time the value is provided.
-/// Example if the interval is 10 seconds if you create the iterator and call next on it the item will provided
-/// in 10 seconds. If you then wait 5 seconds before calling init you will receive the event 5 seconds after that.
-/// If it is then 35s before the call to next it will immediately return one value, if you call next again it will five
-/// seconds before it receives a value.
-@available(iOS 15.0, macOS 12.0, *)
-public struct AsyncTimerSequenceOriginal : AsyncSequence {
+@available(macOS 12.0, iOS 15.0, *)
+/// Wraps a Timer in an Async Sequence of Void. If you call next() on the interator it will return
+public struct AsyncTimerSequence : AsyncSequence {
     
-    public typealias AsyncIterator = AsyncTimerIterator
+    public typealias AsyncIterator = Iterator
+    public typealias Element = Void
     
-    public typealias Element = ()
-    
-    public let interval: TimeInterval
+    let interval: TimeInterval
     
     public init(interval: TimeInterval) {
         self.interval = interval
     }
     
-    public func makeAsyncIterator() -> AsyncTimerIterator {
-        return AsyncTimerIterator(interval: interval)
-    }
-
-    public actor AsyncTimerIterator : AsyncIteratorProtocol {
-        private(set) var timer: Timer?
-        private var continuation: (() -> Void)?
+    public func makeAsyncIterator() -> Iterator { Iterator(interval: interval) }
+    
+    /// The reason this iterator needs to be a class is so that the timer can be invalidated on deinit (although being an actor would be prefered but
+    /// for continuation resume bug (SR-14875, SR-14841)
+    public final class Iterator : AsyncIteratorProtocol, UnsafeSendable {
         
-        convenience init(interval: TimeInterval) {
-            self.init()
-            let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-                guard let s = self else { return }
-                Task.detached { await s.tick() }
+        /// The InnerActor is only necessary because of the bug calling
+        private actor InnerActor {
+            private var continuations: Deque<CheckedContinuation<(), Never>> = []
+            
+            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
+                return continuations.popFirst()
             }
-            Task {
-                await self.setTimer(t)
+            
+            fileprivate func addContinuation(_ continuation: CheckedContinuation<(), Never>) {
+                continuations.append(continuation)
             }
-            RunLoop.main.add(t, forMode: .default)
         }
+        private let safeContinuations = InnerActor()
+        private let timer: Timer?
         
-        private func setTimer(_ t: Timer) {
-            self.timer = t
-        }
-        
-//        private init() {}
-        
-//        convenience init(interval: TimeInterval) {
-//            self.init()
-//            async {
-//                //await startTimer(interval: interval)
-//                let t = Timer(timeInterval: interval, repeats: true) { _ in
-//                    guard let s = s else { return }
-//                    detach { await s.tick() }
-//                }
-//                timer = t
-//                RunLoop.main.add(t, forMode: .default)
-//            }
-//        }
-//
-//        private func startTimer(interval: TimeInterval) {
-//            weak var s = self
-//            let t = Timer(timeInterval: interval, repeats: true) { _ in
-//                guard let s = s else { return }
-//                detach { await s.tick() }
-//            }
-//            timer = t
-//            RunLoop.main.add(t, forMode: .default)
-//        }
-        
-        private func tick() async {
-            continuation?()
-            continuation = nil
+        fileprivate init(interval: TimeInterval) {
+            let safeConts = safeContinuations
+            let timer = Timer(fire: .now, interval: interval, repeats: true) { _ in
+                Task {
+                    let continuation = await safeConts.getContinuation()
+                    continuation?.resume()
+                }
+            }
+            self.timer = timer
+            RunLoop.main.add(timer, forMode: .default)
         }
         
         public func next() async throws -> ()? {
             await withCheckedContinuation { continuation in
-                self.continuation = {
-                    continuation.resume(with: .success(()))
+                Task {
+                    await safeContinuations.addContinuation(continuation)
                 }
             }
+            return ()
         }
         
         deinit {
-            print("Iterator deinit")
+            timer?.invalidate()
         }
     }
 }

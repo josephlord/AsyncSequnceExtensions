@@ -18,7 +18,7 @@ final class AsyncSequencePublisherTests: XCTestCase {
     
     func testAsyncSequencePublisherBasic() throws {
         var counter = 0
-        let itemsToExpect = 100
+        let itemsToExpect = 10
         let asyncSequence = AsyncTimerSequence(interval: 0.001)
             .prefix(itemsToExpect)
             .map { _ -> Int in
@@ -33,11 +33,40 @@ final class AsyncSequencePublisherTests: XCTestCase {
             XCTAssertEqual(itemsToExpect, lastReceivedValue)
             e.fulfill()
         } receiveValue: { val in
-            print("received \(val)")
             XCTAssertEqual(lastReceivedValue + 1, val)
             lastReceivedValue = val
         }
         waitForExpectations(timeout: 0.5, handler: nil)
+        _ = cancellable
+    }
+    
+    
+    func testAsyncSequencePublisherCancellation() throws {
+        var counter = 0
+        let itemsToExpect = 10
+        let asyncSequence = AsyncTimerSequence(interval: 0.001)
+            .map { _ -> Int in
+                counter += 1
+                return counter
+            }
+        let sut = asyncSequence.publisher
+        var lastReceivedValue = 0
+        let waiter = XCTWaiter()
+        let e = expectation(description: "Receive completion")
+        var cancellable: Cancellable?
+        cancellable = sut.sink { completion in
+            XCTFail()
+            e.fulfill()
+        } receiveValue: { val in
+            XCTAssertEqual(lastReceivedValue + 1, val)
+            lastReceivedValue = val
+            if lastReceivedValue == itemsToExpect {
+                cancellable?.cancel()
+            }
+        }
+        
+        XCTAssertEqual(waiter.wait(for: [e], timeout: 0.1), .timedOut)
+        XCTAssertEqual(itemsToExpect, lastReceivedValue)
         _ = cancellable
     }
 }

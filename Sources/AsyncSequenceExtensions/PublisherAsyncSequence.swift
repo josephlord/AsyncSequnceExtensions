@@ -3,32 +3,32 @@ import Combine
 import _Concurrency
 
 @available(macOS 12.0, iOS 15.0, *)
-struct PublisherAsyncSequence<Element> : AsyncSequence {
+public struct PublisherAsyncSequence<Element> : AsyncSequence {
 
     let publisher: AnyPublisher<Element, Error>
 
-    func makeAsyncIterator() -> Iterator {
+    public func makeAsyncIterator() -> Iterator {
         let itr = Iterator()
         publisher.receive(subscriber: itr)
         return itr
     }
 
-    actor Iterator : AsyncIteratorProtocol, Subscriber {
-        typealias Input = Element
-        typealias Failure = Error
+    public actor Iterator : AsyncIteratorProtocol, Subscriber {
+        public typealias Input = Element
+        public typealias Failure = Error
         
         private var subscription: Subscription?
 
         private var continuation: CheckedContinuation<Element?, Error>?
 
-        func next() async throws -> Element? {
+        public func next() async throws -> Element? {
             try await withCheckedThrowingContinuation({ continuation in
                 self.continuation = continuation
                 subscription?.request(.max(1))
             })
         }
 
-        nonisolated func receive(subscription: Subscription) {
+        nonisolated public func receive(subscription: Subscription) {
             Task {
                 await self.receive(sub: subscription)
             }
@@ -38,7 +38,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
             self.subscription = sub
         }
         
-        nonisolated func receive(completion: Subscribers.Completion<Error>) {
+        nonisolated public func receive(completion: Subscribers.Completion<Error>) {
             Task {
                 await receive(compl: completion)
             }
@@ -54,7 +54,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
             continuation = nil
         }
         
-        nonisolated func receive(_ input: Element) -> Subscribers.Demand {
+        nonisolated public func receive(_ input: Element) -> Subscribers.Demand {
             Task {
                 await receive(input: input)
             }
@@ -73,7 +73,7 @@ struct PublisherAsyncSequence<Element> : AsyncSequence {
 
 @available(macOS 12.0, iOS 15.0, *)
 extension Publisher where Self.Failure == Error {
-    var asyncSequence: PublisherAsyncSequence<Output> {
+    public var asyncSequence: PublisherAsyncSequence<Output> {
         PublisherAsyncSequence(publisher: self.eraseToAnyPublisher())
     }
 }

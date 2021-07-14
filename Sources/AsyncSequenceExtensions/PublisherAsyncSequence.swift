@@ -1,6 +1,5 @@
 
 import Combine
-import _Concurrency
 
 @available(macOS 12.0, iOS 15.0, *)
 public struct PublisherAsyncSequence<Element> : AsyncSequence {
@@ -19,13 +18,17 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         
         private let iActor = InnerActor()
         
+        /// Due to bug [SR-14875](https://bugs.swift.org/browse/SR-14875) we need to avoid calling continuations
+        /// from the actor execution context currently which is why we wrap the state in this InnerActor instead of just making the Interator
+        /// and actor
         private actor InnerActor {
+            /// These typealiases are just for cleaner call sites
+            typealias ElementContinuation = CheckedContinuation<Element?, Error>
+            typealias SubsciptionContinuation = CheckedContinuation<Void, Never>
+            
             private var subscription: Subscription?
             private var subscriptionContinuation: SubsciptionContinuation?
-            private var continuation: EContinuation?
-            
-            typealias EContinuation = CheckedContinuation<Element?, Error>
-            typealias SubsciptionContinuation = CheckedContinuation<Void, Never>
+            private var continuation: ElementContinuation?
             
             func next() async throws -> Element? {
                 if subscription == nil {
@@ -48,7 +51,7 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
             }
             
             /// You should resume the completion immediately after calling this
-            func getAndClearMainCompletion() -> EContinuation? {
+            func getAndClearMainCompletion() -> ElementContinuation? {
                 defer { continuation = nil }
                 return continuation
             }

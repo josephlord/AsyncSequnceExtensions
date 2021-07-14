@@ -3,22 +3,24 @@ import Combine
 
 @available(macOS 12.0, iOS 15.0, *)
 extension Publisher where Self.Failure == Error {
-    public var asyncSequence: PublisherAsyncSequence<Output> {
-        PublisherAsyncSequence(publisher: self.eraseToAnyPublisher())
+    public var asyncSequence: PublisherAsyncSequence<Self> {
+        PublisherAsyncSequence(publisher: self)
     }
 }
 
 @available(macOS 12.0, iOS 15.0, *)
-public struct PublisherAsyncSequence<Element> : AsyncSequence {
+public struct PublisherAsyncSequence<P> where P : Publisher, P.Failure == Error {
 
-    let publisher: AnyPublisher<Element, Error>
-
-    public func makeAsyncIterator() -> Iterator {
-        let itr = Iterator()
-        publisher.receive(subscriber: itr)
-        return itr
+    init(publisher: P) {
+        self.pub = publisher
     }
+    let pub: P
+    public typealias Element = P.Output
+    public typealias Failure = P.Failure
+}
 
+@available(macOS 12.0, iOS 15.0, *)
+extension PublisherAsyncSequence {
     public class Iterator {
         
         private let iActor = InnerActor()
@@ -28,7 +30,7 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         /// and actor
         private actor InnerActor {
             /// These typealiases are just for cleaner call sites
-            typealias ElementContinuation = CheckedContinuation<Element?, Error>
+            typealias ElementContinuation = CheckedContinuation<Element?, P.Failure>
             typealias SubsciptionContinuation = CheckedContinuation<Void, Never>
             
             private var subscription: Subscription?
@@ -88,7 +90,18 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
 }
 
 @available(macOS 12.0, iOS 15.0, *)
+extension PublisherAsyncSequence : AsyncSequence {
+    public func makeAsyncIterator() -> Iterator {
+        let itr = Iterator()
+        pub.receive(subscriber: itr)
+        return itr
+    }
+}
+
+@available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence.Iterator : AsyncIteratorProtocol {
+    public typealias Element = P.Output
+    
     public func next() async throws -> Element? {
         try await iActor.next()
     }
@@ -96,6 +109,10 @@ extension PublisherAsyncSequence.Iterator : AsyncIteratorProtocol {
 
 @available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence.Iterator : Subscriber {
+    
+    public typealias Input = P.Output
+    public typealias Failure = P.Failure
+    
     public func receive(_ input: Element) -> Subscribers.Demand {
         Task {
             await receive(input: input)
@@ -110,7 +127,7 @@ extension PublisherAsyncSequence.Iterator : Subscriber {
         }
     }
     
-    public func receive(completion: Subscribers.Completion<Error>) {
+    public func receive(completion: Subscribers.Completion<Failure>) {
         Task {
             await receive(compl: completion)
         }

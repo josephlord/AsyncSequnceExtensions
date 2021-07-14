@@ -13,16 +13,23 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         return itr
     }
 
-    public actor Iterator : AsyncIteratorProtocol, Subscriber {
+    public class Iterator : AsyncIteratorProtocol, Subscriber {
         public typealias Input = Element
         public typealias Failure = Error
         
         private var subscription: Subscription?
+        private var subscriptionContinuation: CheckedContinuation<Void, Never>?
 
         private var continuation: CheckedContinuation<Element?, Error>?
 
         public func next() async throws -> Element? {
-            try await withCheckedThrowingContinuation({ continuation in
+            if subscription == nil {
+                await withCheckedContinuation { continuation in
+                    subscriptionContinuation = continuation
+                }
+            }
+            
+            return try await withCheckedThrowingContinuation({ continuation in
                 self.continuation = continuation
                 subscription?.request(.max(1))
             })
@@ -36,6 +43,7 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         
         private func receive(sub: Subscription) async {
             self.subscription = sub
+            subscriptionContinuation?.resume()
         }
         
         nonisolated public func receive(completion: Subscribers.Completion<Error>) {

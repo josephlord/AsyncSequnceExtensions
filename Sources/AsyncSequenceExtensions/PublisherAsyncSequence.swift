@@ -17,41 +17,67 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         public typealias Input = Element
         public typealias Failure = Error
         
-        private var subscription: Subscription?
-        private var subscriptionContinuation: CheckedContinuation<Void, Never>?
-
-        private var continuation: CheckedContinuation<Element?, Error>?
-
-        public func next() async throws -> Element? {
-            if subscription == nil {
-                await withCheckedContinuation { continuation in
-                    subscriptionContinuation = continuation
+        private let iActor = InnerActor()
+        
+        private actor InnerActor {
+            private var subscription: Subscription?
+            private var subscriptionContinuation: SubsciptionContinuation?
+            private var continuation: EContinuation?
+            
+            typealias EContinuation = CheckedContinuation<Element?, Error>
+            typealias SubsciptionContinuation = CheckedContinuation<Void, Never>
+            
+            func next() async throws -> Element? {
+                if subscription == nil {
+                    await withCheckedContinuation { continuation in
+                        subscriptionContinuation = continuation
+                    }
                 }
+                
+                return try await withCheckedThrowingContinuation({ continuation in
+                    self.continuation = continuation
+                    subscription?.request(.max(1))
+                })
             }
             
-            return try await withCheckedThrowingContinuation({ continuation in
-                self.continuation = continuation
-                subscription?.request(.max(1))
-            })
+            func setSubscription(subscription: Subscription) -> SubsciptionContinuation? {
+                defer { subscriptionContinuation = nil }
+                assert(self.subscription == nil)
+                self.subscription = subscription
+                return subscriptionContinuation
+            }
+            
+            /// You should resume the completion immediately after calling this
+            func getAndClearMainCompletion() -> EContinuation? {
+                defer { continuation = nil }
+                return continuation
+            }
+            
+            /// You should resume the completion immediately after calling this
+            func getAndClearSubscriptionCompletion() -> SubsciptionContinuation? {
+                defer { subscriptionContinuation = nil }
+                return subscriptionContinuation
+            }
         }
 
-        nonisolated public func receive(subscription: Subscription) {
+        public func next() async throws -> Element? {
+            try await iActor.next()
+        }
+
+        public func receive(subscription: Subscription) {
             Task {
-                await self.receive(sub: subscription)
+                let continuation = await self.iActor.setSubscription(subscription: subscription)
+                continuation?.resume()
             }
         }
         
-        private func receive(sub: Subscription) async {
-            self.subscription = sub
-            subscriptionContinuation?.resume()
-        }
-        
-        nonisolated public func receive(completion: Subscribers.Completion<Error>) {
+        public func receive(completion: Subscribers.Completion<Error>) {
             Task {
                 await receive(compl: completion)
             }
         }
         private func receive(compl: Subscribers.Completion<Error>) async {
+            let continuation = await iActor.getAndClearMainCompletion()
             assert(continuation != nil)
             switch compl {
             case .finished:
@@ -59,20 +85,19 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
             case .failure(let err):
                 continuation?.resume(throwing: err)
             }
-            continuation = nil
         }
         
-        nonisolated public func receive(_ input: Element) -> Subscribers.Demand {
+        public func receive(_ input: Element) -> Subscribers.Demand {
             Task {
                 await receive(input: input)
             }
             return .none
         }
-        private func receive(input: Element) {
+        
+        private func receive(input: Element) async {
+            let continuation = await iActor.getAndClearMainCompletion()
             assert(continuation != nil)
             continuation?.resume(returning: input)
-            continuation = nil
-            
         }
     }
 

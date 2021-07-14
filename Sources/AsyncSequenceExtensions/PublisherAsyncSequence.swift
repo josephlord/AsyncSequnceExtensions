@@ -2,6 +2,13 @@
 import Combine
 
 @available(macOS 12.0, iOS 15.0, *)
+extension Publisher where Self.Failure == Error {
+    public var asyncSequence: PublisherAsyncSequence<Output> {
+        PublisherAsyncSequence(publisher: self.eraseToAnyPublisher())
+    }
+}
+
+@available(macOS 12.0, iOS 15.0, *)
 public struct PublisherAsyncSequence<Element> : AsyncSequence {
 
     let publisher: AnyPublisher<Element, Error>
@@ -12,9 +19,7 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
         return itr
     }
 
-    public class Iterator : AsyncIteratorProtocol, Subscriber {
-        public typealias Input = Element
-        public typealias Failure = Error
+    public class Iterator {
         
         private let iActor = InnerActor()
         
@@ -63,22 +68,6 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
             }
         }
 
-        public func next() async throws -> Element? {
-            try await iActor.next()
-        }
-
-        public func receive(subscription: Subscription) {
-            Task {
-                let continuation = await self.iActor.setSubscription(subscription: subscription)
-                continuation?.resume()
-            }
-        }
-        
-        public func receive(completion: Subscribers.Completion<Error>) {
-            Task {
-                await receive(compl: completion)
-            }
-        }
         private func receive(compl: Subscribers.Completion<Error>) async {
             let continuation = await iActor.getAndClearMainCompletion()
             assert(continuation != nil)
@@ -90,27 +79,40 @@ public struct PublisherAsyncSequence<Element> : AsyncSequence {
             }
         }
         
-        public func receive(_ input: Element) -> Subscribers.Demand {
-            Task {
-                await receive(input: input)
-            }
-            return .none
-        }
-        
         private func receive(input: Element) async {
             let continuation = await iActor.getAndClearMainCompletion()
             assert(continuation != nil)
             continuation?.resume(returning: input)
         }
     }
-
 }
 
-
 @available(macOS 12.0, iOS 15.0, *)
-extension Publisher where Self.Failure == Error {
-    public var asyncSequence: PublisherAsyncSequence<Output> {
-        PublisherAsyncSequence(publisher: self.eraseToAnyPublisher())
+extension PublisherAsyncSequence.Iterator : AsyncIteratorProtocol {
+    public func next() async throws -> Element? {
+        try await iActor.next()
     }
 }
 
+@available(macOS 12.0, iOS 15.0, *)
+extension PublisherAsyncSequence.Iterator : Subscriber {
+    public func receive(_ input: Element) -> Subscribers.Demand {
+        Task {
+            await receive(input: input)
+        }
+        return .none
+    }
+    
+    public func receive(subscription: Subscription) {
+        Task {
+            let continuation = await self.iActor.setSubscription(subscription: subscription)
+            continuation?.resume()
+        }
+    }
+    
+    public func receive(completion: Subscribers.Completion<Error>) {
+        Task {
+            await receive(compl: completion)
+        }
+    }
+}

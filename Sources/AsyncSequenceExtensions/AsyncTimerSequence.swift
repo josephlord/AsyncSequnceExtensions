@@ -30,10 +30,16 @@ public struct AsyncTimerSequence : AsyncSequence {
         private actor InnerActor {
             private var continuation: CheckedContinuation<(), Never>?
             
-            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
+//            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
+//                defer { continuation = nil }
+//                return continuation
+//            }
+
+            fileprivate func fireContinuation() {
                 defer { continuation = nil }
-                return continuation
+                continuation?.resume()
             }
+
             
             fileprivate func setContinuation(_ continuation: CheckedContinuation<(), Never>) {
                 self.continuation = continuation
@@ -46,8 +52,9 @@ public struct AsyncTimerSequence : AsyncSequence {
             let safeConts = safeContinuations
             let timer = Timer(fire: .now, interval: interval, repeats: true) { _ in
                 Task {
-                    let continuation = await safeConts.getContinuation()
-                    continuation?.resume()
+//                    let continuation = await safeConts.getContinuation()
+//                    continuation?.resume()
+                    await safeConts.fireContinuation()
                 }
             }
             self.timer = timer

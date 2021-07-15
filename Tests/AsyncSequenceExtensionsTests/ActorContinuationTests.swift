@@ -15,11 +15,11 @@ actor SUTActor {
     func pause() async {
         if canGo { return }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) -> Void in
-//            if canGo {
-//                continuation.resume(returning: ())
-//            } else {
+            if canGo {
+                continuation.resume()
+            } else {
                 self.continuation = continuation
-//            }
+            }
         }
     }
     
@@ -34,13 +34,17 @@ final class ActorContinuationTests : XCTestCase {
     func testPauseGo() {
         let sut = SUTActor()
         let exp = expectation(description: "Will resume")
+        
         Task.detached(priority: .high) {
             await sut.pause()
             exp.fulfill()
         }
-        Task.detached(priority: .default) {
+            
+        Task.detached (priority: .default) {
+        //    await Task.sleep(10_000)
             await sut.go()
         }
+            
         waitForExpectations(timeout: 0.2, handler: nil)
         _ = sut // Ensure lifetime sufficient
     }

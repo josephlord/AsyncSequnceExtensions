@@ -36,7 +36,11 @@ extension PublisherAsyncSequence {
             
             func next() async throws -> Element? {
                 if subscription == nil {
-                    await withCheckedContinuation { continuation in
+                    await withCheckedContinuation { (continuation: SubsciptionContinuation) -> Void in
+                        guard subscription == nil else {
+                            Task.detached { continuation.resume() }
+                            return
+                        }
                         subscriptionContinuation = continuation
                     }
                 }

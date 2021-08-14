@@ -1,14 +1,12 @@
 
 import Combine
 
-@available(macOS 12.0, iOS 15.0, *)
 extension Publisher where Self.Failure == Error {
     public var asyncSequence: PublisherAsyncSequence<Self> {
         PublisherAsyncSequence(publisher: self)
     }
 }
 
-@available(macOS 12.0, iOS 15.0, *)
 public struct PublisherAsyncSequence<P> where P : Publisher, P.Failure == Error {
 
     init(publisher: P) {
@@ -19,7 +17,6 @@ public struct PublisherAsyncSequence<P> where P : Publisher, P.Failure == Error 
     public typealias Failure = P.Failure
 }
 
-@available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence {
     public class Iterator {
         
@@ -39,7 +36,11 @@ extension PublisherAsyncSequence {
             
             func next() async throws -> Element? {
                 if subscription == nil {
-                    await withCheckedContinuation { continuation in
+                    await withCheckedContinuation { (continuation: SubsciptionContinuation) -> Void in
+                        guard subscription == nil else {
+                            Task.detached { continuation.resume() }
+                            return
+                        }
                         subscriptionContinuation = continuation
                     }
                 }
@@ -89,7 +90,6 @@ extension PublisherAsyncSequence {
     }
 }
 
-@available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence : AsyncSequence {
     public func makeAsyncIterator() -> Iterator {
         let itr = Iterator()
@@ -98,7 +98,6 @@ extension PublisherAsyncSequence : AsyncSequence {
     }
 }
 
-@available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence.Iterator : AsyncIteratorProtocol {
     public typealias Element = P.Output
     
@@ -107,7 +106,6 @@ extension PublisherAsyncSequence.Iterator : AsyncIteratorProtocol {
     }
 }
 
-@available(macOS 12.0, iOS 15.0, *)
 extension PublisherAsyncSequence.Iterator : Subscriber {
     
     public typealias Input = P.Output

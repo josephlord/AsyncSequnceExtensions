@@ -40,7 +40,7 @@ final class ActorContinuationTests : XCTestCase {
             exp.fulfill()
         }
             
-        Task.detached (priority: .default) {
+        Task.detached (priority: .medium) {
         //    await Task.sleep(10_000)
             await sut.go()
         }

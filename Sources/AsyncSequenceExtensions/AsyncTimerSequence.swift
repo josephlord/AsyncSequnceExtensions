@@ -27,28 +27,19 @@ public struct AsyncTimerSequence : AsyncSequence {
     public final actor Iterator : AsyncIteratorProtocol {
         
         private var continuation: CheckedContinuation<(), Never>?
-
-        private var timer: Timer?
+        private let interval: TimeInterval
+        
+        private lazy var timer: Timer = Timer(fire: .now, interval: interval, repeats: true) { [weak self] _ in
+            self?.fireAndClearContinuationNI()
+        }
         
         fileprivate init(interval: TimeInterval) {
-            self.timer = nil
-            configureTimer(interval: interval)
-        }
-        
-        nonisolated private func configureTimer(interval: TimeInterval) {
-            let timer = Timer(fire: .now, interval: interval, repeats: true) { [weak self] _ in
-                self?.fireAndClearContinuationNI()
-            }
-            RunLoop.main.add(timer, forMode: .default)
+            self.interval = interval
             Task {
-                await self.setTimer(timer: timer)
+                await RunLoop.main.add(timer, forMode: .default)
             }
         }
-        
-        func setTimer(timer: Timer) {
-            self.timer = timer
-        }
-        
+                
         nonisolated private func fireAndClearContinuationNI() {
             Task {
                 await self.fireAndClearContinuation()
@@ -69,7 +60,7 @@ public struct AsyncTimerSequence : AsyncSequence {
         }
         
         deinit {
-            timer?.invalidate()
+            timer.invalidate()
         }
     }
 }

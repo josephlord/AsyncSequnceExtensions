@@ -24,47 +24,43 @@ public struct AsyncTimerSequence : AsyncSequence {
     
     /// The reason this iterator needs to be a class is so that the timer can be invalidated on deinit (although being an actor would be prefered but
     /// for continuation resume bug (SR-14875, SR-14841)
-    public final class Iterator : AsyncIteratorProtocol {
+    public final actor Iterator : AsyncIteratorProtocol {
         
-        /// The InnerActor is only necessary because of the bug calling
-        private actor InnerActor {
-            private var continuation: CheckedContinuation<(), Never>?
-            
-            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
-                defer { continuation = nil }
-                return continuation
-            }
-            
-            fileprivate func setContinuation(_ continuation: CheckedContinuation<(), Never>) {
-                self.continuation = continuation
-            }
+        private var continuation: CheckedContinuation<(), Never>?
+        private let interval: TimeInterval
+        
+        private lazy var timer: Timer = Timer(fire: .now, interval: interval, repeats: true) { [weak self] _ in
+            self?.fireAndClearContinuationNI()
         }
-        private let safeContinuations = InnerActor()
-        private let timer: Timer?
         
         fileprivate init(interval: TimeInterval) {
-            let safeConts = safeContinuations
-            let timer = Timer(fire: .now, interval: interval, repeats: true) { _ in
-                Task {
-                    let continuation = await safeConts.getContinuation()
-                    continuation?.resume()
-                }
+            self.interval = interval
+            Task {
+                await RunLoop.main.add(timer, forMode: .default)
             }
-            self.timer = timer
-            RunLoop.main.add(timer, forMode: .default)
+        }
+                
+        nonisolated private func fireAndClearContinuationNI() {
+            Task {
+                await self.fireAndClearContinuation()
+            }
+        }
+        
+        private func fireAndClearContinuation() {
+            continuation?.resume()
+            continuation = nil
         }
         
         public func next() async throws -> ()? {
             await withCheckedContinuation { continuation in
-                Task {
-                    await safeContinuations.setContinuation(continuation)
-                }
-            }
+                assert(self.continuation == nil)
+                self.continuation = continuation
+            } as Void
             return ()
         }
         
         deinit {
-            timer?.invalidate()
+            timer.invalidate()
         }
     }
 }

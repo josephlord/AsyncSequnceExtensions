@@ -27,11 +27,6 @@ public struct AsyncTimerSequence : AsyncSequence {
     public final actor Iterator : AsyncIteratorProtocol {
         
         private var continuation: CheckedContinuation<(), Never>?
-            
-//            fileprivate func getContinuation() -> CheckedContinuation<(), Never>? {
-//                defer { continuation = nil }
-//                return continuation
-//            }
 
         private var timer: Timer?
         

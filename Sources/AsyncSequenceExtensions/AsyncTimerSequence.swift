@@ -33,8 +33,12 @@ public struct AsyncTimerSequence : AsyncSequence {
             self?.fireAndClearContinuationNI()
         }
         
-        fileprivate init(interval: TimeInterval) {
-            self.interval = interval
+        private init(intervalInternal: TimeInterval) {
+            self.interval = intervalInternal
+        }
+        
+        fileprivate convenience init(interval: TimeInterval) {
+            self.init(intervalInternal: interval)
             Task {
                 await RunLoop.main.add(timer, forMode: .default)
             }

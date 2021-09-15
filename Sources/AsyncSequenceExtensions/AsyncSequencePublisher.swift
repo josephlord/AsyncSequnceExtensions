@@ -91,7 +91,12 @@ public struct AsyncSequencePublisher<AsyncSequenceType> : Publisher where AsyncS
             }
         }
         
-        init(sequence: AsyncSequenceType, subscriber: S) {
+        private init() {
+            
+        }
+        
+        convenience init(sequence: AsyncSequenceType, subscriber: S) {
+            self.init()
             Task {
                 await self.mainLoop(seq: sequence, sub: subscriber)
             }
